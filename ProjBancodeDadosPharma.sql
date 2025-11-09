@@ -34,7 +34,7 @@ CREATE TABLE CategoriasMed(
 CREATE TABLE Clientes(
 	idCliente INT NOT NULL PRIMARY KEY IDENTITY (1,1),
 	Nome VARCHAR(50) NOT NULL,
-	CPF CHAR(11) NOT NULL UNIQUE,  -- Alterado para char
+	CPF CHAR(11) NOT NULL UNIQUE,
 	DataNasc DATE NOT NULL,
 	DataUltimaCompra DATE,
 	DataCadastro DATE NOT NULL,
@@ -46,17 +46,17 @@ CREATE TABLE Telefones(
 	idCliente INT NOT NULL,
 	CodPais INT NOT NULL,
 	CodArea INT NOT NULL,
-	Numero NUMERIC(15,0) NOT NULL
+	Numero NVARCHAR(20) NOT NULL
 );
 
 CREATE TABLE ClientesRestritos(
 	id INT NOT NULL PRIMARY KEY IDENTITY (1,1),
-	idCliente INT NOT NULL UNIQUE     -- Adicionado o UNIQUE
+	idCliente INT NOT NULL UNIQUE
 );
 
 CREATE TABLE Fornecedores(
 	idFornecedor INT NOT NULL PRIMARY KEY IDENTITY (1,1),
-	CNPJ CHAR(14) NOT NULL UNIQUE,    -- Alterado para char
+	CNPJ CHAR(14) NOT NULL UNIQUE,
 	RazaoSocial VARCHAR(50) NOT NULL,
 	Pais VARCHAR(20) NOT NULL,
 	DataAbertura DATE NOT NULL,
@@ -67,7 +67,7 @@ CREATE TABLE Fornecedores(
 
 CREATE TABLE FornecedoresRestritos(
 	id INT NOT NULL PRIMARY KEY IDENTITY (1,1),
-	idFornecedor INT NOT NULL UNIQUE     -- Adicionado o UNIQUE
+	idFornecedor INT NOT NULL UNIQUE
 );
 
 CREATE TABLE Vendas(
@@ -93,7 +93,7 @@ CREATE TABLE ItensVendas(
 	idVenda INT NOT NULL,
 	CDB NUMERIC(13,0) NOT NULL,
 	ValorUnitario DECIMAL(6,2),
-	TotalItem AS (CAST(Quantidade * ValorUnitario AS DECIMAL(7,2))) PERSISTED
+	TotalItem AS (CAST(Quantidade * ValorUnitario AS DECIMAL(7,2))) PERSISTED  -- atributo derivado | CAST=converter_Tipo e PERSISTED=armazenar
 );
 
 CREATE TABLE Producoes(
@@ -137,11 +137,11 @@ GO
 
 --         >>   Alterando Tabelas (Adicionado Constraints)   <<
 ALTER TABLE Medicamentos
-ADD CONSTRAINT Chk_venda_positivo CHECK (ValorVenda > 0)
+ADD CONSTRAINT Chk_venda_positivo CHECK (ValorVenda > 0)  -- Uma restrição em que a venda deve ser positivo
 GO
 
 ALTER TABLE ItensCompras
-ADD CONSTRAINT Chk_compra_positivo CHECK (ValorUnitario > 0)
+ADD CONSTRAINT Chk_compra_positivo CHECK (ValorUnitario > 0)  -- Uma restrição em que a compra deve ser positivo
 GO
 
 --         >>   Criação dos Relacionamento entre tabelas   <<
@@ -186,12 +186,11 @@ ALTER TABLE Fornecedores
 ADD FOREIGN KEY (Situacao) REFERENCES SituacaoFornecedores(id)
 GO
 
---         >>   Uso de Trigger para Impedir o DELETE   <<<
+--         >>   Criação de Triggers para Impedir o DELETE   <<<
 CREATE TRIGGER Trg_ImpedirDelete_SituacaoClientes
 ON SituacaoClientes
-INSTEAD OF DELETE
-AS
-BEGIN
+INSTEAD OF DELETE   -- INSTEAD OF = aciona a trigger antes da operação DELETE 
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -200,8 +199,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_SituacaoMed
 ON SituacaoMed
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -210,8 +208,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_SituacaoPrincipiosAtivo
 ON SituacaoPrincipiosAtivo
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -220,8 +217,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_SituacaoFornecedores
 ON SituacaoFornecedores
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -230,8 +226,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_CategoriasMed
 ON CategoriasMed
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -240,8 +235,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_Clientes
 ON Clientes
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -250,8 +244,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_Telefones
 ON Telefones
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -260,8 +253,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_Fornecedores
 ON Fornecedores
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -270,8 +262,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_Vendas
 ON Vendas
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -280,8 +271,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_Medicamentos
 ON Medicamentos
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -290,8 +280,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_ItensVendas
 ON ItensVendas
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -300,8 +289,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_Producoes
 ON Producoes
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -310,8 +298,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_PrincipiosAtivo
 ON PrincipiosAtivo
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -320,8 +307,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_ItensProducoes
 ON ItensProducoes
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -330,8 +316,7 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_Compras
 ON Compras
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
 END;
@@ -340,9 +325,97 @@ GO
 CREATE TRIGGER Trg_ImpedirDelete_ItensCompras
 ON ItensCompras
 INSTEAD OF DELETE
-AS
-BEGIN
+AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+END;
+GO
+
+--         >>   Criação de Triggers para outras funcionalidades   <<< 
+CREATE TRIGGER Trg_PreencherValorUnitario
+ON ItensVendas
+AFTER INSERT
+AS BEGIN
+    SET NOCOUNT ON;
+    UPDATE iv
+    SET iv.ValorUnitario = m.ValorVenda    -- Aqui ele faz a cópia do valor e atrbui a ValorUnitario
+    FROM ItensVendas iv
+    JOIN inserted i 
+	ON iv.id = i.id
+    JOIN Medicamentos m
+	ON i.CDB = m.CDB
+    WHERE iv.ValorUnitario IS NULL;
+END;
+GO
+
+CREATE TRIGGER Trg_Limita_ItensPorVenda
+ON ItensVendas
+AFTER INSERT
+AS BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+        FROM ItensVendas iv
+        JOIN inserted i ON iv.idVenda = i.idVenda
+        GROUP BY iv.idVenda
+        HAVING COUNT(iv.idVenda) > 3
+    )
+    BEGIN
+	    ROLLBACK TRANSACTION;
+        THROW 51001, 'Uma venda não pode conter mais de 3 itens.', 1;
+    END;
+END;
+GO
+
+CREATE TRIGGER Trg_PreencherValorTotaldaVenda
+ON ItensVendas
+AFTER INSERT, UPDATE
+AS BEGIN
+    SET NOCOUNT ON;
+    UPDATE v
+    SET v.ValorTotal = (SELECT SUM(iv.TotalItem)
+        FROM ItensVendas iv
+        WHERE iv.idVenda = v.idVenda
+    )
+    FROM Vendas v
+    JOIN (SELECT DISTINCT idVenda
+	FROM inserted
+    ) 
+	AS i ON v.idVenda = i.idVenda;
+END;
+GO
+
+CREATE TRIGGER Trg_Limita_ItensPorCompra
+ON ItensCompras
+AFTER INSERT
+AS BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+        FROM ItensCompras ic
+        JOIN inserted i ON ic.idCompra = i.idCompra
+        GROUP BY ic.idCompra
+        HAVING COUNT(ic.idCompra) > 3
+    )
+    BEGIN
+	    ROLLBACK TRANSACTION;
+        THROW 51001, 'Uma compra não pode conter mais de 3 itens.', 1;
+    END;
+END;
+GO
+
+CREATE TRIGGER Trg_PreencherValorTotaldaCompra
+ON ItensCompras
+AFTER INSERT, UPDATE
+AS BEGIN
+    SET NOCOUNT ON;
+    UPDATE c
+    SET c.ValorTotal = (SELECT SUM(ic.TotalItem)
+        FROM ItensCompras ic
+        WHERE ic.idCompra = c.idCompra
+    )
+    FROM Compras c
+    JOIN (SELECT DISTINCT idCompra
+	FROM inserted
+    ) 
+	AS i ON c.idCompra = i.idCompra;
 END;
 GO
