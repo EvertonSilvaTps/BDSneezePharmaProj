@@ -419,3 +419,32 @@ AS BEGIN
 	AS i ON c.idCompra = i.idCompra;
 END;
 GO
+
+CREATE TRIGGER Trg_MaiorIdade_Venda
+ON Vendas
+INSTEAD OF INSERT
+AS BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+        FROM inserted i
+        JOIN Clientes c ON i.idCliente = c.idCliente
+        WHERE DATEDIFF(YEAR, c.DataNasc, GETDATE()) -           -- pega a diferença entre anos, e subtrai 1 caso não fez aniversário ainda
+            CASE 
+                WHEN MONTH(c.DataNasc) > MONTH(GETDATE())    -- se o mês de nascimento for maior que o mês atual
+                     OR (MONTH(c.DataNasc) = MONTH(GETDATE()) AND DAY(c.DataNasc) > DAY(GETDATE()))  -- ou serem iguais, mas o dia for maior
+                THEN 1    -- não fez aniversário ainda, portanto subtrai 1
+                ELSE 0    -- senão, subtrai por 0
+            END < 18
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 51001, 'Cliente menor de idade não pode realizar venda.', 1;
+        RETURN;
+    END
+
+    -- Se todos os clientes são maiores de idade, insere normalmente
+    INSERT INTO Vendas (idCliente, DataVenda, ValorVenda)
+    SELECT idCliente, DataVenda, ValorVenda
+    FROM inserted;
+END;
+GO
