@@ -436,15 +436,40 @@ AS BEGIN
                 ELSE 0    -- senão, subtrai por 0
             END < 18
     )
+    BEGIN  
+        ROLLBACK TRANSACTION;  -- se entrar no if por ser menor de idade, ele faz a operação de cancelar saí da trigger
+        THROW 51002, 'A venda não pode ser feita para cliente de menor de idade.', 1;
+    END
+    -- Se não cair dentro do if, então todos os clientes são maiores de idade, insere normalmente
+    INSERT INTO Vendas (idCliente, DataVenda)
+    SELECT idCliente, DataVenda
+    FROM inserted;
+END;
+GO
+
+CREATE TRIGGER Trg_LimitedeAbertura_Fornecedor
+ON Compras
+INSTEAD OF INSERT
+AS BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+        FROM inserted i
+        JOIN Fornecedores f ON i.idFornecedor = f.idFornecedor
+        WHERE DATEDIFF(YEAR, f.DataAbertura, GETDATE()) -
+            CASE 
+                WHEN MONTH(f.DataAbertura) > MONTH(GETDATE())
+                     OR (MONTH(f.DataAbertura) = MONTH(GETDATE()) AND DAY(f.DataAbertura) > DAY(GETDATE()))
+                THEN 1
+                ELSE 0
+            END < 2
+    )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 51001, 'Cliente menor de idade não pode realizar venda.', 1;
-        RETURN;
+        THROW 51002, 'A compra não pode ser feita de fornecedor com menor de 2 anos de abertura.', 1;
     END
 
-    -- Se todos os clientes são maiores de idade, insere normalmente
-    INSERT INTO Vendas (idCliente, DataVenda, ValorVenda)
-    SELECT idCliente, DataVenda, ValorVenda
+    INSERT INTO Compras (idFornecedor, DataCompra)
+    SELECT idFornecedor, DataCompra
     FROM inserted;
 END;
 GO
