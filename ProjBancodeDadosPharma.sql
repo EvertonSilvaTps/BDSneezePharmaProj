@@ -423,11 +423,39 @@ AS BEGIN
 END;
 GO
 
-CREATE TRIGGER Trg_MaiorIdade_Venda
+/*================VERIFICAÇÕES PARA O CLIENTE===================*/
+CREATE TRIGGER Trg_Cliente_RestritoInativoMaiorIdade
 ON Vendas
 INSTEAD OF INSERT
 AS BEGIN
     SET NOCOUNT ON;
+
+------------Verifica se o cliente está na lista de restritos
+
+    IF EXISTS (SELECT 1
+        FROM inserted i
+        JOIN ClientesRestritos r ON r.idCliente = i.idCliente
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50020, 'Cliente restrito — venda não permitida.', 1;
+    END;
+
+----------------------Verifica se o cliente está inativo
+
+    IF EXISTS (SELECT 1
+        FROM inserted i
+        JOIN Clientes c ON c.idCliente = i.idCliente
+        JOIN SituacaoClientes s ON c.Situacao = s.id
+        WHERE s.Situacao = 'I'
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50021, 'Cliente inativo — não é possível registrar venda.', 1;
+    END;
+
+-----------------Verifica se o cliente tem menos de 18 anos
+
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Clientes c ON i.idCliente = c.idCliente
@@ -450,11 +478,38 @@ AS BEGIN
 END;
 GO
 
-CREATE TRIGGER Trg_LimitedeAbertura_Fornecedor
+/*=====================================VERIFICAÇÕES DO FORNECEDOR===============================*/
+CREATE TRIGGER Trg_Fornecedor_RestritoInativo_LimiteAbertura
 ON Compras
 INSTEAD OF INSERT
 AS BEGIN
-    SET NOCOUNT ON;
+---------------Verifica se o fornecedor está bloqueado
+
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        JOIN FornecedoresRestritos r ON r.idFornecedor = i.idFornecedor
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50001, 'Fornecedor bloqueado — compra não permitida.', 1;
+    END;
+------------------Verifica se o fornecedor está inativo
+
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        JOIN Fornecedores f ON f.idFornecedor = i.idFornecedor
+        JOIN SituacaoFornecedores s ON f.Situacao = s.id
+        WHERE s.Situacao = 'I'
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50023, 'Fornecedor inativo — compra não permitida.', 1;
+    END;
+
+---------------Verifica se o fornecedor tem menos de 2 anos de abertura
+
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Fornecedores f ON i.idFornecedor = f.idFornecedor
@@ -468,14 +523,216 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 51002, 'A compra não pode ser feita de fornecedor com menor de 2 anos de abertura.', 1;
-    END
+        THROW 51002, 'Fornecedor com menos de 2 anos de abertura — compra não permitida.', 1;
+    END;
 
-    INSERT INTO Compras (idFornecedor, DataCompra)
-    SELECT idFornecedor, DataCompra
+    INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal)
+    SELECT idFornecedor, DataCompra, ValorTotal
     FROM inserted;
 END;
 GO
+
+/* ================================ATUALIZAR DATA DA ULTIMA COMPRA DO CLIENTE======================= */
+
+CREATE TRIGGER Trg_AtualizaUltimaCompra
+ON Vendas
+AFTER INSERT
+AS BEGIN
+    UPDATE Clientes
+    SET DataUltimaCompra = i.DataVenda
+    FROM Clientes c
+    JOIN inserted i ON c.idCliente = i.idCliente;
+END;
+GO
+
+/* ================================ATUALIZAR ULTIMO FORNECIMENTO DO FORNECEDOR======================= */
+
+CREATE TRIGGER Trg_AtualizaUltimoFornecimento
+ON Compras
+AFTER INSERT
+AS BEGIN
+    UPDATE Fornecedores
+    SET UltimoFornecimento = i.DataCompra
+    FROM Fornecedores f
+    JOIN inserted i ON f.idFornecedor = i.idFornecedor;
+END;
+GO
+
+/* ================================PRINCIPIO ATIVO "INATIVO" EM COMPRA======================= */
+
+CREATE TRIGGER Trg_PrincipioInativo_Compra
+ON ItensCompras
+INSTEAD OF INSERT
+AS BEGIN
+    IF EXISTS (SELECT 1
+        FROM inserted i
+        JOIN PrincipiosAtivo p ON p.idPrincipioAt = i.idPrincipioAt
+        JOIN SituacaoPrincipiosAtivo s ON p.Situacao = s.id
+        WHERE s.Situacao = 'I'
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50012, 'O Princípio ativo esta como inativo — não pode ser comprado.', 1;
+    END;
+
+    INSERT INTO ItensCompras (idCompra, idPrincipioAt, Quantidade, ValorUnitario)
+    SELECT idCompra, idPrincipioAt, Quantidade, ValorUnitario
+    FROM inserted;
+END;
+GO
+
+/* ================================PRINCIPIO ATIVO "INATIVO" EM PRODUÇÃO======================= */
+
+CREATE TRIGGER Trg_PrincipioInativo_Producao
+ON ItensProducoes
+INSTEAD OF INSERT
+AS BEGIN
+    IF EXISTS (SELECT 1
+        FROM inserted i
+        JOIN PrincipiosAtivo p ON p.idPrincipioAt = i.idPrincipioAt
+        JOIN SituacaoPrincipiosAtivo s ON p.Situacao = s.id
+        WHERE s.Situacao = 'I'
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50013, 'Princípio ativo esta como inativo — não pode ser usado na produção.', 1;
+    END;
+
+    INSERT INTO ItensProducoes (idProducao, idPrincipioAt, Quantidade)
+    SELECT idProducao, idPrincipioAt, Quantidade
+    FROM inserted;
+END;
+GO
+
+/* ================================MEDICAMENTO "INATIVO" EM VENDA======================= */
+
+CREATE TRIGGER Trg_Medicamento_Inativo_Venda
+ON ItensVendas
+INSTEAD OF INSERT
+AS BEGIN
+    IF EXISTS (SELECT 1
+        FROM inserted i
+        JOIN Medicamentos m ON m.CDB = i.CDB
+        JOIN SituacaoMed s ON m.Situacao = s.id
+        WHERE s.Situacao = 'I'
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50014, 'Medicamento inativo — não pode ser vendido.', 1;
+    END;
+
+    INSERT INTO ItensVendas (Quantidade, idVenda, CDB, ValorUnitario)
+    SELECT Quantidade, idVenda, CDB, ValorUnitario
+    FROM inserted;
+END;
+GO
+
+/* ================================MEDICAMENTO "INATIVO" EM PRODUÇÃO======================= */
+
+CREATE TRIGGER Trg_Medicamento_Inativo_Producao
+ON Producoes
+INSTEAD OF INSERT
+AS BEGIN
+    IF EXISTS (SELECT 1
+        FROM inserted i
+        JOIN Medicamentos m ON m.CDB = i.CDB
+        JOIN SituacaoMed s ON m.Situacao = s.id
+        WHERE s.Situacao = 'I'
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50015, 'Medicamento inativo — não pode ser produzido.', 1;
+    END;
+
+    INSERT INTO Producoes (DataProducao, CDB, Quantidade)
+    SELECT DataProducao, CDB, Quantidade
+    FROM inserted;
+END;
+GO
+
+/* ================================ATUALIZA ULTIMA VENDA DO MEDICAMENTO======================= */
+
+CREATE OR ALTER TRIGGER Trg_Atualiza_UltimaVenda_Medicamento
+ON ItensVendas
+AFTER INSERT
+AS BEGIN
+    UPDATE m
+    SET m.UltimaVenda = v.DataVenda
+    FROM Medicamentos m
+    JOIN inserted i ON m.CDB = i.CDB
+    JOIN Vendas v ON v.idVenda = i.idVenda;
+END;
+GO
+
+/* ================================ATUALIZA ULTIMA COMPRA DO PRINCIPIO ATIVO======================= */
+
+CREATE OR ALTER TRIGGER Trg_Atualiza_UltimaCompra_Principio
+ON ItensCompras
+AFTER INSERT
+AS BEGIN
+    UPDATE p
+    SET p.DataUltimaCompra = c.DataCompra
+    FROM PrincipiosAtivo p
+    JOIN inserted i ON p.idPrincipioAt = i.idPrincipioAt
+    JOIN Compras c ON c.idCompra = i.idCompra;
+END;
+GO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 -------------------      <<<    Uso de JOINS para concatenar dados entre tabelas    <<<      -------------------
 
