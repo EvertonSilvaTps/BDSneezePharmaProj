@@ -1,11 +1,11 @@
---         <<   Criar Banco de Dados   >>
+-------------------------   >>>   Criar Banco de Dados   <<<   -------------------------
 CREATE DATABASE SneezePharma;
 GO
 
 USE SneezePharma
 GO
 
---         <<   Criação das Tabelas   >>
+-------------------------   >>>   Criar Tabelas   <<<   -------------------------
 CREATE TABLE SituacaoClientes(
 	id INT NOT NULL PRIMARY KEY IDENTITY (1,1),
 	Situacao CHAR(1) NOT NULL
@@ -73,7 +73,7 @@ CREATE TABLE FornecedoresRestritos(
 CREATE TABLE Vendas(
 	idVenda INT NOT NULL PRIMARY KEY IDENTITY (1,1),
 	idCliente INT NOT NULL,
-	DataVenda DATE NOT NULL,
+	DataVenda DATE NOT NULL DEFAULT (GETDATE()),
 	ValorTotal DECIMAL(7,2)
 );
 
@@ -121,7 +121,7 @@ CREATE TABLE ItensProducoes(
 CREATE TABLE Compras(
 	idCompra INT NOT NULL PRIMARY KEY IDENTITY (1,1),
 	idFornecedor INT NOT NULL,
-	DataCompra DATE NOT NULL,
+	DataCompra DATE NOT NULL DEFAULT (GETDATE()),
 	ValorTotal DECIMAL(7,2)
 );
 
@@ -135,16 +135,25 @@ CREATE TABLE ItensCompras(
 );
 GO
 
---         >>   Alterando Tabelas (Adicionado Constraints)   <<
+-------------------------   >>>   Alterando Tabelas (Adicionado Constraints)   <<<   -------------------------     ADICIONADO CONSTRAINTs
 ALTER TABLE Medicamentos
-ADD CONSTRAINT Chk_venda_positivo CHECK (ValorVenda > 0)  -- Uma restrição em que a venda deve ser positivo
+ADD CONSTRAINT Chk_venda_positivo CHECK (ValorVenda > 0)  -- Restrição em que a venda deve ser positivo
 GO
 
 ALTER TABLE ItensCompras
-ADD CONSTRAINT Chk_compra_positivo CHECK (ValorUnitario > 0)  -- Uma restrição em que a compra deve ser positivo
+ADD CONSTRAINT Chk_compra_positivo CHECK (ValorUnitario > 0),  -- Restrição em que a compra deve ser positivo
+CONSTRAINT Chk_ItensCompras_qtd_positivo CHECK (Quantidade > 0)  -- Restrição em que a qtdd deve ser positivo
 GO
 
---         >>   Criação dos Relacionamento entre tabelas   <<
+ALTER TABLE ItensVendas
+ADD CONSTRAINT Chk_ItensVendas_qtd_positivo CHECK (Quantidade > 0)  -- Restrição em que a qtdd deve ser positivo
+GO
+
+ALTER TABLE ItensProducoes
+ADD CONSTRAINT Chk_ItensProducoes_qtd_positivo CHECK (Quantidade > 0)  -- Restrição em que a qtdd deve ser positivo
+GO
+
+-------------------------   >>>   Relacionamento entre tabelas   <<<   -------------------------
 ALTER TABLE Telefones
 ADD FOREIGN KEY (idCliente) REFERENCES Clientes(idCliente)
 GO
@@ -189,159 +198,317 @@ ALTER TABLE FornecedoresRestritos
 ADD FOREIGN KEY (idFornecedor) REFERENCES Fornecedores(idFornecedor)
 GO
 
---         >>   Criação de Triggers para Impedir o DELETE   <<<
-CREATE TRIGGER Trg_ImpedirDelete_SituacaoClientes
+-------------------------   >>>   PROCEDURES   <<<   -------------------------
+
+--------   >>>   Procedure ItensVendas  <<<   --------     *Verifica se existe o idVenda e CDB
+CREATE OR ALTER PROCEDURE sp_ItensVendas
+@idVenda INT,
+@CDB NUMERIC(13,0),
+@Quantidade INT
+AS BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY   -- (estrutura: TRY/CATCH)   | TRY > faz a tentativa de inserção
+        BEGIN TRAN;   -- (estrutura: BEGIN TRAN / COMMIT TRAN / ROLLBACK TRAN)    | BEGIN TRAN > o bloco precisa funcionar todas juntas ou nenhuma.
+
+                -- Valida se a venda existe
+        IF NOT EXISTS (SELECT 1 FROM Vendas WHERE idVenda = @idVenda)
+            THROW 50001, 'Venda nao encontrada.', 1;
+
+                -- Valida se o CDB existe
+        IF NOT EXISTS (SELECT 1 FROM Medicamentos WHERE CDB = @CDB)
+            THROW 50001, 'CDB nao encontrada.', 1;
+
+        INSERT INTO ItensVendas (idVenda, CDB, Quantidade)   -- faz a inserção
+        VALUES (@idVenda, @CDB, @Quantidade);
+
+        COMMIT TRAN;   -- se ela não caiu dentro do if então ela confirma o commit
+    END TRY
+
+    BEGIN CATCH   -- CATCH > o que fazer se der erro
+        ROLLBACK TRAN;   -- TRAN = Abreviação de TRANSACTIONfaz
+        THROW;
+    END CATCH
+END;
+GO
+
+--------   >>>   Procedure Vendas  <<<   --------
+CREATE OR ALTER PROCEDURE sp_CadastrarVenda
+@idCliente INT,
+@CDB NUMERIC(13,0),
+@Quantidade INT,
+@CDB2 NUMERIC(13,0) = NULL,
+@Quantidade2 INT = NULL,
+@CDB3 NUMERIC(13,0) = NULL,
+@Quantidade3 INT = NULL
+AS BEGIN
+    SET NOCOUNT ON;
+    DECLARE @idVenda INT;
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        IF NOT EXISTS (SELECT 1 FROM Clientes WHERE idCliente = @idCliente)
+            THROW 50001, 'Cliente inexistente.', 1;
+
+        INSERT INTO Vendas (DataVenda, idCliente)
+        VALUES (GETDATE(), @idCliente);
+
+        SET @idVenda = SCOPE_IDENTITY();
+
+        EXEC sp_ItensVendas @idVenda, @CDB, @Quantidade;
+
+        -- opcionais
+        IF @CDB2 IS NOT NULL AND @Quantidade2 IS NOT NULL
+            EXEC sp_ItensVendas @idVenda, @CDB2, @Quantidade2;
+
+        IF @CDB3 IS NOT NULL AND @Quantidade3 IS NOT NULL
+            EXEC sp_ItensVendas @idVenda, @CDB3, @Quantidade3;
+
+        COMMIT TRAN;
+
+        SELECT @idVenda AS idVenda;   --  retorna o id da venda que foi gerado para quem chamou a procedure
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END;
+GO
+
+--------   >>>   Procedure ItensCompras  <<<   --------
+CREATE OR ALTER PROCEDURE sp_ItensCompras
+@idCompra INT,
+@idPrincipioAt INT,
+@Quantidade INT,
+@ValorUnitario DECIMAL(5,2)
+AS BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRAN;
+
+                -- Valida se a compra existe
+        IF NOT EXISTS (SELECT 1 FROM Compras WHERE idCompra = @idCompra)
+            THROW 50001, 'Compra nao encontrada.', 1;
+
+                -- Valida se o Principio Ativo existe
+        IF NOT EXISTS (SELECT 1 FROM PrincipiosAtivo WHERE idPrincipioAt = @idPrincipioAt)
+            THROW 50001, 'Principio Ativo nao encontrado.', 1;
+
+        INSERT INTO ItensCompras (idCompra, idPrincipioAt, Quantidade, ValorUnitario)
+        VALUES (@idCompra, @idPrincipioAt, @Quantidade, @ValorUnitario);
+
+        COMMIT TRAN;
+    END TRY
+
+    BEGIN CATCH
+        ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END;
+GO
+
+--------   >>>   Procedure Compras  <<<   --------
+CREATE OR ALTER PROCEDURE sp_CadastrarCompra
+@idFornecedor INT,
+@idPrincipioAt INT,
+@Quantidade INT,
+@ValorUnitario DECIMAL(5,2),
+@idPrincipioAt2 INT = NULL,
+@Quantidade2 INT = NULL,
+@ValorUnitario2 DECIMAL(5,2) = NULL,
+@idPrincipioAt3 INT = NULL,
+@Quantidade3 INT = NULL,
+@ValorUnitario3 DECIMAL(5,2) = NULL
+AS BEGIN
+    SET NOCOUNT ON;
+    DECLARE @idCompra INT;
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        IF NOT EXISTS (SELECT 1 FROM Fornecedores WHERE idFornecedor = @idFornecedor)
+            THROW 50001, 'Fornecedor inexistente.', 1;
+
+        INSERT INTO Compras (DataCompra, idFornecedor)
+        VALUES (GETDATE(), @idFornecedor);
+
+        SET @idCompra = SCOPE_IDENTITY();
+
+        EXEC sp_ItensCompras @idCompra, @idPrincipioAt, @Quantidade, @ValorUnitario;
+
+        -- opcionais
+        IF @idPrincipioAt2 IS NOT NULL AND @Quantidade2 IS NOT NULL AND @ValorUnitario2 IS NOT NULL
+            EXEC sp_ItensCompras @idCompra, @idPrincipioAt2, @Quantidade2, @ValorUnitario2;
+
+        IF @idPrincipioAt3 IS NOT NULL AND @Quantidade3 IS NOT NULL AND @ValorUnitario3 IS NOT NULL
+            EXEC sp_ItensCompras @idCompra, @idPrincipioAt3, @Quantidade3, @ValorUnitario3;
+
+        COMMIT TRAN;
+    END TRY
+
+    BEGIN CATCH
+        ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END;
+GO
+
+-------------------------   >>>   TRIGGGER   <<<   -------------------------
+
+--------   >>>   Triggers Impedir o DELETE   <<<   --------
+
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_SituacaoClientes
 ON SituacaoClientes
 INSTEAD OF DELETE   -- INSTEAD OF = aciona a trigger antes da operação DELETE 
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_SituacaoMed
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_SituacaoMed
 ON SituacaoMed
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_SituacaoPrincipiosAtivo
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_SituacaoPrincipiosAtivo
 ON SituacaoPrincipiosAtivo
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_SituacaoFornecedores
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_SituacaoFornecedores
 ON SituacaoFornecedores
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_CategoriasMed
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_CategoriasMed
 ON CategoriasMed
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_Clientes
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_Clientes
 ON Clientes
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_Telefones
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_Telefones
 ON Telefones
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_Fornecedores
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_Fornecedores
 ON Fornecedores
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_Vendas
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_Vendas
 ON Vendas
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_Medicamentos
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_Medicamentos
 ON Medicamentos
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_ItensVendas
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_ItensVendas
 ON ItensVendas
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_Producoes
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_Producoes
 ON Producoes
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_PrincipiosAtivo
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_PrincipiosAtivo
 ON PrincipiosAtivo
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_ItensProducoes
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_ItensProducoes
 ON ItensProducoes
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_Compras
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_Compras
 ON Compras
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
-CREATE TRIGGER Trg_ImpedirDelete_ItensCompras
+CREATE OR ALTER TRIGGER Trg_ImpedirDelete_ItensCompras
 ON ItensCompras
 INSTEAD OF DELETE
 AS BEGIN
 	SET NOCOUNT ON;
-	THROW 51000, 'DELETE não é permitida nesta tabela.', 1;
+	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
 END;
 GO
 
---         >>   Criação de Triggers para outras funcionalidades   <<< 
-CREATE TRIGGER Trg_PreencherValorUnitario
+--------   >>>   Trigger Preencher ValorUnitario   <<<   --------
+CREATE OR ALTER TRIGGER Trg_PreencherValorUnitario
 ON ItensVendas
 AFTER INSERT
 AS BEGIN
     SET NOCOUNT ON;
     UPDATE iv
-    SET iv.ValorUnitario = m.ValorVenda    -- Aqui ele faz a cópia do valor e atrbui a ValorUnitario
+    SET iv.ValorUnitario = m.ValorVenda    -- faz a cópia do valor e atrbui a ValorUnitario
     FROM ItensVendas iv
     JOIN inserted i 
 	ON iv.id = i.id
@@ -351,7 +518,8 @@ AS BEGIN
 END;
 GO
 
-CREATE TRIGGER Trg_Limita_ItensPorVenda
+--------   >>>   Trigger Limita ItensPorVenda   <<<   --------
+CREATE OR ALTER TRIGGER Trg_Limita_ItensPorVenda
 ON ItensVendas
 AFTER INSERT
 AS BEGIN
@@ -360,16 +528,17 @@ AS BEGIN
         FROM ItensVendas iv
         JOIN inserted i ON iv.idVenda = i.idVenda
         GROUP BY iv.idVenda
-        HAVING COUNT(iv.idVenda) > 3
+        HAVING COUNT(*) > 3
     )
     BEGIN
 	    ROLLBACK TRANSACTION;
-        THROW 51001, 'Uma venda não pode conter mais de 3 itens.', 1;
+        THROW 51001, 'Uma venda nao pode conter mais de 3 itens.', 1;
     END;
 END;
 GO
 
-CREATE TRIGGER Trg_PreencherValorTotaldaVenda
+--------   >>>   Trigger Preencher ValorTotaldaVenda   <<<   --------
+CREATE OR ALTER TRIGGER Trg_PreencherValorTotaldaVenda
 ON ItensVendas
 AFTER INSERT, UPDATE
 AS BEGIN
@@ -387,7 +556,8 @@ AS BEGIN
 END;
 GO
 
-CREATE TRIGGER Trg_Limita_ItensPorCompra
+--------   >>>   Trigger Limita ItensPorCompra   <<<   --------
+CREATE OR ALTER TRIGGER Trg_Limita_ItensPorCompra
 ON ItensCompras
 AFTER INSERT
 AS BEGIN
@@ -396,16 +566,17 @@ AS BEGIN
         FROM ItensCompras ic
         JOIN inserted i ON ic.idCompra = i.idCompra
         GROUP BY ic.idCompra
-        HAVING COUNT(ic.idCompra) > 3
+        HAVING COUNT(*) > 3
     )
     BEGIN
 	    ROLLBACK TRANSACTION;
-        THROW 51001, 'Uma compra não pode conter mais de 3 itens.', 1;
+        THROW 51001, 'Uma compra nao pode conter mais de 3 itens.', 1;
     END;
 END;
 GO
 
-CREATE TRIGGER Trg_PreencherValorTotaldaCompra
+--------   >>>   Trigger Preencher ValorTotaldaCompra   <<<   --------
+CREATE OR ALTER TRIGGER Trg_PreencherValorTotaldaCompra
 ON ItensCompras
 AFTER INSERT, UPDATE
 AS BEGIN
@@ -423,26 +594,25 @@ AS BEGIN
 END;
 GO
 
-/*================VERIFICAÇÕES PARA O CLIENTE===================*/
-CREATE TRIGGER Trg_Cliente_RestritoInativoMaiorIdade
+--------   >>>   Trigger VERIFICAÇÕES PARA O CLIENTE   <<<   --------          ALTERADO PARA >  AFTER INSERT, para que o Procedure funcione corretamente
+
+CREATE OR ALTER TRIGGER Trg_Cliente_RestritoInativoMaiorIdade
 ON Vendas
-INSTEAD OF INSERT
+AFTER INSERT
 AS BEGIN
     SET NOCOUNT ON;
 
-------------Verifica se o cliente está na lista de restritos
-
+--Verifica se está na lista de restritos
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN ClientesRestritos r ON r.idCliente = i.idCliente
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50020, 'Cliente restrito — venda não permitida.', 1;
+        THROW 50020, 'Cliente restrito — venda nao permitida.', 1;
     END;
 
-----------------------Verifica se o cliente está inativo
-
+--Verifica se está inativo
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Clientes c ON c.idCliente = i.idCliente
@@ -451,53 +621,48 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50021, 'Cliente inativo — não é possível registrar venda.', 1;
+        THROW 50021, 'Cliente inativo — nao e possível registrar venda.', 1;
     END;
 
------------------Verifica se o cliente tem menos de 18 anos
-
+--Verifica se é menor de idade
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Clientes c ON i.idCliente = c.idCliente
-        WHERE DATEDIFF(YEAR, c.DataNasc, GETDATE()) -           -- pega a diferença entre anos, e subtrai 1 caso não fez aniversário ainda
+        WHERE DATEDIFF(YEAR, c.DataNasc, GETDATE()) -        -- subtrai por 1 caso não tenha feito aniversário ainda
             CASE 
                 WHEN MONTH(c.DataNasc) > MONTH(GETDATE())    -- se o mês de nascimento for maior que o mês atual
                      OR (MONTH(c.DataNasc) = MONTH(GETDATE()) AND DAY(c.DataNasc) > DAY(GETDATE()))  -- ou serem iguais, mas o dia for maior
-                THEN 1    -- não fez aniversário ainda, portanto subtrai 1
+                THEN 1    -- não fez aniversário > subtrai 1
                 ELSE 0    -- senão, subtrai por 0
             END < 18
     )
     BEGIN  
-        ROLLBACK TRANSACTION;  -- se entrar no if por ser menor de idade, ele faz a operação de cancelar saí da trigger
-        THROW 51002, 'A venda não pode ser feita para cliente de menor de idade.', 1;
+        ROLLBACK TRANSACTION;  -- por ser menor de idade, ele faz a operação de cancelar saí da trigger
+        THROW 51002, 'A venda nao pode ser feita para cliente de menor de idade.', 1;
     END
-    -- Se não cair dentro do if, então todos os clientes são maiores de idade, insere normalmente
-    INSERT INTO Vendas (idCliente, DataVenda)
-    SELECT idCliente, DataVenda
-    FROM inserted;
 END;
 GO
 
-/*=====================================VERIFICAÇÕES DO FORNECEDOR===============================*/
-CREATE TRIGGER Trg_Fornecedor_RestritoInativo_LimiteAbertura
-ON Compras
-INSTEAD OF INSERT
-AS BEGIN
----------------Verifica se o fornecedor está bloqueado
+--------   >>>   Trigger VERIFICAÇÕES DO FORNECEDOR   <<<   --------          ALTERADO PARA >  AFTER INSERT, para que o Procedure funcione corretamente
 
-    IF EXISTS (
-        SELECT 1
+CREATE OR ALTER TRIGGER Trg_Fornecedor_RestritoInativo_LimiteAbertura
+ON Compras
+AFTER INSERT
+AS BEGIN
+    SET NOCOUNT ON;
+
+--Verifica se está na lista de restritos
+    IF EXISTS (SELECT 1
         FROM inserted i
         JOIN FornecedoresRestritos r ON r.idFornecedor = i.idFornecedor
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50001, 'Fornecedor bloqueado — compra não permitida.', 1;
+        THROW 50001, 'Fornecedor bloqueado — compra nao permitida.', 1;
     END;
-------------------Verifica se o fornecedor está inativo
 
-    IF EXISTS (
-        SELECT 1
+--Verifica se está inativo
+    IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Fornecedores f ON f.idFornecedor = i.idFornecedor
         JOIN SituacaoFornecedores s ON f.Situacao = s.id
@@ -505,11 +670,10 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50023, 'Fornecedor inativo — compra não permitida.', 1;
+        THROW 50023, 'Fornecedor inativo — compra nao permitida.', 1;
     END;
 
----------------Verifica se o fornecedor tem menos de 2 anos de abertura
-
+--Verifica se tem menos de 2 anos de abertura
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Fornecedores f ON i.idFornecedor = f.idFornecedor
@@ -523,47 +687,42 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 51002, 'Fornecedor com menos de 2 anos de abertura — compra não permitida.', 1;
+        THROW 51002, 'Fornecedor com menos de 2 anos de abertura — compra nao permitida.', 1;
     END;
-
-    INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal)
-    SELECT idFornecedor, DataCompra, ValorTotal
-    FROM inserted;
 END;
 GO
 
-/* ================================ATUALIZAR DATA DA ULTIMA COMPRA DO CLIENTE======================= */
-
-CREATE TRIGGER Trg_AtualizaUltimaCompra
+--------   >>>   Trigger AtualizaUltimaCompra   <<<   --------
+CREATE OR ALTER TRIGGER Trg_AtualizaUltimaCompra
 ON Vendas
 AFTER INSERT
 AS BEGIN
-    UPDATE Clientes
+    UPDATE c
     SET DataUltimaCompra = i.DataVenda
     FROM Clientes c
     JOIN inserted i ON c.idCliente = i.idCliente;
 END;
 GO
 
-/* ================================ATUALIZAR ULTIMO FORNECIMENTO DO FORNECEDOR======================= */
-
-CREATE TRIGGER Trg_AtualizaUltimoFornecimento
+--------   >>>   Trigger Atualizar UltimoFornecimento   <<<   --------
+CREATE OR ALTER TRIGGER Trg_AtualizaUltimoFornecimento
 ON Compras
 AFTER INSERT
 AS BEGIN
-    UPDATE Fornecedores
+    UPDATE f
     SET UltimoFornecimento = i.DataCompra
     FROM Fornecedores f
     JOIN inserted i ON f.idFornecedor = i.idFornecedor;
 END;
 GO
 
-/* ================================PRINCIPIO ATIVO "INATIVO" EM COMPRA======================= */
-
-CREATE TRIGGER Trg_PrincipioInativo_Compra
+--------   >>>   Trigger PrincipioInativo_Compra   <<<   --------
+CREATE OR ALTER TRIGGER Trg_PrincipioInativo_Compra
 ON ItensCompras
-INSTEAD OF INSERT
+AFTER INSERT
 AS BEGIN
+    SET NOCOUNT ON;
+
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN PrincipiosAtivo p ON p.idPrincipioAt = i.idPrincipioAt
@@ -572,21 +731,18 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50012, 'O Princípio ativo esta como inativo — não pode ser comprado.', 1;
+        THROW 50012, 'O Principio ativo esta como inativo — nao pode ser comprado.', 1;
     END;
-
-    INSERT INTO ItensCompras (idCompra, idPrincipioAt, Quantidade, ValorUnitario)
-    SELECT idCompra, idPrincipioAt, Quantidade, ValorUnitario
-    FROM inserted;
 END;
 GO
 
-/* ================================PRINCIPIO ATIVO "INATIVO" EM PRODUÇÃO======================= */
-
-CREATE TRIGGER Trg_PrincipioInativo_Producao
+--------   >>>   Trigger PrincipioInativo_Producao   <<<   --------
+CREATE OR ALTER TRIGGER Trg_PrincipioInativo_Producao
 ON ItensProducoes
-INSTEAD OF INSERT
+AFTER INSERT
 AS BEGIN
+    SET NOCOUNT ON;
+
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN PrincipiosAtivo p ON p.idPrincipioAt = i.idPrincipioAt
@@ -595,21 +751,18 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50013, 'Princípio ativo esta como inativo — não pode ser usado na produção.', 1;
+        THROW 50013, 'Principio ativo esta como inativo — nao pode ser usado na producao.', 1;
     END;
-
-    INSERT INTO ItensProducoes (idProducao, idPrincipioAt, Quantidade)
-    SELECT idProducao, idPrincipioAt, Quantidade
-    FROM inserted;
 END;
 GO
 
-/* ================================MEDICAMENTO "INATIVO" EM VENDA======================= */
-
-CREATE TRIGGER Trg_Medicamento_Inativo_Venda
+--------   >>>   Trigger Medicamento_Inativo_Venda   <<<   --------
+CREATE OR ALTER TRIGGER Trg_Medicamento_Inativo_Venda
 ON ItensVendas
-INSTEAD OF INSERT
+AFTER INSERT
 AS BEGIN
+    SET NOCOUNT ON;
+
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Medicamentos m ON m.CDB = i.CDB
@@ -618,21 +771,18 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50014, 'Medicamento inativo — não pode ser vendido.', 1;
+        THROW 50014, 'Medicamento inativo — nao pode ser vendido.', 1;
     END;
-
-    INSERT INTO ItensVendas (Quantidade, idVenda, CDB, ValorUnitario)
-    SELECT Quantidade, idVenda, CDB, ValorUnitario
-    FROM inserted;
 END;
 GO
 
-/* ================================MEDICAMENTO "INATIVO" EM PRODUÇÃO======================= */
-
-CREATE TRIGGER Trg_Medicamento_Inativo_Producao
+--------   >>>   Trigger Medicamento_Inativo_Producao   <<<   --------
+CREATE OR ALTER TRIGGER Trg_Medicamento_Inativo_Producao
 ON Producoes
-INSTEAD OF INSERT
+AFTER INSERT
 AS BEGIN
+    SET NOCOUNT ON;
+
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Medicamentos m ON m.CDB = i.CDB
@@ -641,17 +791,12 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50015, 'Medicamento inativo — não pode ser produzido.', 1;
+        THROW 50015, 'Medicamento inativo — nao pode ser produzido.', 1;
     END;
-
-    INSERT INTO Producoes (DataProducao, CDB, Quantidade)
-    SELECT DataProducao, CDB, Quantidade
-    FROM inserted;
 END;
 GO
 
-/* ================================ATUALIZA ULTIMA VENDA DO MEDICAMENTO======================= */
-
+--------   >>>   Trigger Atualiza_UltimaVenda_Medicamento   <<<   --------
 CREATE OR ALTER TRIGGER Trg_Atualiza_UltimaVenda_Medicamento
 ON ItensVendas
 AFTER INSERT
@@ -664,8 +809,7 @@ AS BEGIN
 END;
 GO
 
-/* ================================ATUALIZA ULTIMA COMPRA DO PRINCIPIO ATIVO======================= */
-
+--------   >>>   Trigger Atualiza_UltimaCompra_Principio   <<<   --------
 CREATE OR ALTER TRIGGER Trg_Atualiza_UltimaCompra_Principio
 ON ItensCompras
 AFTER INSERT

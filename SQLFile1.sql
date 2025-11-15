@@ -1,3 +1,6 @@
+USE SneezePharma
+GO
+
 ------------------------------------------------------SITUAÇÃO CLIENTE------------------------------------------------------
 
 INSERT INTO SituacaoClientes (Situacao) VALUES
@@ -111,67 +114,84 @@ SELECT * FROM Medicamentos;
 ------------------------------------------------------VENDAS------------------------------------------------------
 
 				/*ValorTotal = Soma de TotalItemVenda*/
-INSERT INTO Vendas (idCliente, DataVenda, ValorTotal) VALUES	/*Atributo idCliente sendo informado*/
-(3, '2025-03-11', NULL),
-(4, '2025-04-12', NULL);					
+--INSERT INTO Vendas (idCliente, DataVenda, ValorTotal) VALUES	/*Atributo idCliente sendo informado*/
+--(3, '2025-03-11', NULL),
+--(4, '2025-04-12', NULL);					
 
-INSERT INTO Vendas (idCliente, DataVenda, ValorTotal) VALUES    /*Cliente INATIVO*/
-(1, '2025-05-13', NULL);
+--INSERT INTO Vendas (idCliente, DataVenda, ValorTotal) VALUES    /*Cliente INATIVO*/
+--(1, '2025-05-13', NULL);
 
-INSERT INTO Vendas (idCliente, DataVenda, ValorTotal) VALUES    /*Cliente menor de idade*/
-(2, '2025-02-10', NULL);
+--INSERT INTO Vendas (idCliente, DataVenda, ValorTotal) VALUES    /*Cliente menor de idade*/
+--(2, '2025-02-10', NULL);
 
-INSERT INTO Vendas (idCliente, DataVenda, ValorTotal) VALUES    /*Cliente Restrito*/
-(5, '2025-08-20', NULL);
+--INSERT INTO Vendas (idCliente, DataVenda, ValorTotal) VALUES    /*Cliente Restrito*/
+--(5, '2025-08-20', NULL);
 
-SELECT * FROM Vendas;
+--SELECT * FROM Vendas;
+
+
+EXEC sp_CadastrarVenda 1, 1472583691598, 5
+
+
 
 ----------------------------------------------------ITENS VENDA------------------------------------------------------	
 
 /*ValorUnitario = ValorVenda Medicamento*/ /*TotalItem = Qntd * ValorUnitario*/
-INSERT INTO ItensVendas (Quantidade, idVenda, CDB, ValorUnitario) VALUES
-/*idVenda e CDB sendo trazidos*/
+--INSERT INTO ItensVendas (Quantidade, idVenda, CDB, ValorUnitario) VALUES
+--/*idVenda e CDB sendo trazidos*/
 
-(2, 1, '1472583691598', NULL),	
-(3, 2, '1597536984562', NULL),  
-(1, 2, '7896321475395', NULL);	/*TotalItem esta como NULL pois o valorUnitario precisa vim de valor venda*/
+--(2, 1, '1472583691598', NULL),	
+--(3, 2, '1597536984562', NULL),  
+--(1, 2, '7896321475395', NULL);	/*TotalItem esta como NULL pois o valorUnitario precisa vim de valor venda*/
 
-INSERT INTO ItensVendas (Quantidade, idVenda, CDB, ValorUnitario) VALUES
-(5, 4, '3698741235795', NULL);      /*Medicamento Inativo*/
+--INSERT INTO ItensVendas (Quantidade, idVenda, CDB, ValorUnitario) VALUES
+--(5, 4, '3698741235795', NULL);      /*Medicamento Inativo*/
 
-SELECT * FROM ItensVendas
+--SELECT * FROM ItensVendas
+
+EXEC sp_ItensVendas 1, 1472583691598, 1
+
 
 ------------------------------------------------------COMPRAS------------------------------------------------------
 
 						/*ValorTotal = Soma TotalItemCompra*/
-INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal) VALUES	/*Atributo IdFornecedor sendo atribuido aqui*/
-(4, '2025-09-11', NULL),
-(5, '2025-08-12', NULL),	
-(4, '2025-09-15', NULL);
+--INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal) VALUES	/*Atributo IdFornecedor sendo atribuido aqui*/
+--(4, '2025-09-11', NULL),
+--(5, '2025-08-12', NULL),	
+--(4, '2025-09-15', NULL);
 
-INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal) VALUES
-(3, '2025-06-20', NULL);    /*RESTRITO*/
+--INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal) VALUES
+--(3, '2025-06-20', NULL);    /*RESTRITO*/
 
-INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal) VALUES
-(2, '2025-07-13', NULL);  /*INATIVO*/
+--INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal) VALUES
+--(2, '2025-07-13', NULL);  /*INATIVO*/
 
-INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal) VALUES
-(1, '2025-10-10', NULL); /*MENOS DE 2 ANOS DE ABERTURA*/
+--INSERT INTO Compras (idFornecedor, DataCompra, ValorTotal) VALUES
+--(1, '2025-10-10', NULL); /*MENOS DE 2 ANOS DE ABERTURA*/
 
-SELECT * FROM Compras;
+--SELECT * FROM Compras;
+
+
+EXEC sp_CadastrarCompra 1, 1, 5, 7.00
+
+
 
 ---------------------------------------------------ITENS DE COMPRA---------------------------------------------------	
 
-/*TotalItem = Quantidade * ValorUnitario*/
-INSERT INTO ItensCompras (idCompra, idPrincipioAt, Quantidade, ValorUnitario) VALUES
-/*Atributo IdCompra sendo atribuido aqui, IdPrincipioAtivo Tambem*/
-(2, 2, 3, '10.00'),				
-(3, 3, 4, '20.00');		/*Aqui total item ja está calculando*/
+--/*TotalItem = Quantidade * ValorUnitario*/
+--INSERT INTO ItensCompras (idCompra, idPrincipioAt, Quantidade, ValorUnitario) VALUES
+--/*Atributo IdCompra sendo atribuido aqui, IdPrincipioAtivo Tambem*/
+--(2, 2, 3, '10.00'),				
+--(3, 3, 4, '20.00');		/*Aqui total item ja está calculando*/
 
-INSERT INTO ItensCompras (idCompra, idPrincipioAt, Quantidade, ValorUnitario) VALUES
-(1, 1, 2, '5.00');			/*Principio Inativo*/
+--INSERT INTO ItensCompras (idCompra, idPrincipioAt, Quantidade, ValorUnitario) VALUES
+--(1, 1, 2, '5.00');			/*Principio Inativo*/
 
-SELECT * FROM ItensCompras;
+--SELECT * FROM ItensCompras;
+
+
+EXEC sp_ItensCompras 1, 1, 5, 7.00
+
 
 ------------------------------------------------------PRODUÇÃO------------------------------------------------------
 
