@@ -70,6 +70,12 @@ EXEC sp_CadastrarCliente
 '2009-08-20',
 1
 
+EXEC sp_CadastrarCliente
+'Lionel Messi',
+'98765432198',
+'1990-04-10',
+1
+
 
 
 ------------------------------------------------------TELEFONE------------------------------------------------------
@@ -108,24 +114,30 @@ EXEC sp_CadastrarFornecedor
 '2017-08-22',
 1
 
+EXEC sp_CadastrarFornecedor 
+'35795184200016',
+'DrogariaSaude',
+'Brasil',
+'2018-02-14',
+1
 ----------------------------------------------CLIENTES RESTRITOS-----------------------------------------------
-/*
+
 INSERT INTO ClientesRestritos (idCliente) VALUES
 
-(5);							
+(3);							
 
 SELECT * FROM ClientesRestritos;
-*/
+
 
 ----------------------------------------------FORNECEDORES RESTRITOS-----------------------------------------------
 
-/*
+
 INSERT INTO FornecedoresRestritos (idFornecedor) VALUES
 
 (3);			
 
 SELECT * FROM FornecedoresRestritos;
-*/
+
 
 ------------------------------------------------------PRINCIPIOS ATIVOS------------------------------------------------------
 										/*DataUltimaCompra = DataCompra Comora*/
