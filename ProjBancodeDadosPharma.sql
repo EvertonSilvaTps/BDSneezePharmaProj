@@ -1,4 +1,4 @@
--------------------------   >>>   Criar Banco de Dados   <<<   -------------------------
+ï»¿ï»¿-------------------------   >>>   Criar Banco de Dados   <<<   -------------------------
 CREATE DATABASE SneezePharma;
 GO
 
@@ -37,7 +37,7 @@ CREATE TABLE Clientes(
 	CPF CHAR(11) NOT NULL UNIQUE,
 	DataNasc DATE NOT NULL,
 	DataUltimaCompra DATE,
-	DataCadastro DATE NOT NULL,
+	DataCadastro DATE NOT NULL DEFAULT (GETDATE()),
 	Situacao INT NOT NULL
 );
 
@@ -62,7 +62,7 @@ CREATE TABLE Fornecedores(
 	DataAbertura DATE NOT NULL,
 	Situacao INT NOT NULL,
 	UltimoFornecimento DATE,
-	DataCadastro DATE NOT NULL
+	DataCadastro DATE NOT NULL DEFAULT (GETDATE())
 );
 
 CREATE TABLE FornecedoresRestritos(
@@ -82,7 +82,7 @@ CREATE TABLE Medicamentos(
 	ValorVenda DECIMAL(6,2) NOT NULL,
 	Nome VARCHAR(40) NOT NULL,
 	UltimaVenda DATE,
-	DataCadastro DATE NOT NULL,
+	DataCadastro DATE NOT NULL DEFAULT (GETDATE()),
 	Situacao INT NOT NULL,
 	Categoria INT NOT NULL
 );
@@ -98,7 +98,7 @@ CREATE TABLE ItensVendas(
 
 CREATE TABLE Producoes(
 	idProducao INT NOT NULL PRIMARY KEY IDENTITY (1,1),
-	DataProducao DATE NOT NULL,
+	DataProducao DATE NOT NULL DEFAULT (GETDATE()),
 	CDB NUMERIC(13,0) NOT NULL,
 	Quantidade INT NOT NULL
 );
@@ -108,7 +108,7 @@ CREATE TABLE PrincipiosAtivo(
 	Nome VARCHAR(20) NOT NULL,
 	Situacao INT NOT NULL,
 	DataUltimaCompra DATE,
-	DataCadastro DATE NOT NULL
+	DataCadastro DATE NOT NULL DEFAULT (GETDATE())
 );
 
 CREATE TABLE ItensProducoes(
@@ -137,20 +137,20 @@ GO
 
 -------------------------   >>>   Alterando Tabelas (Adicionado Constraints)   <<<   -------------------------     ADICIONADO CONSTRAINTs
 ALTER TABLE Medicamentos
-ADD CONSTRAINT Chk_venda_positivo CHECK (ValorVenda > 0)  -- Restrição em que a venda deve ser positivo
+ADD CONSTRAINT Chk_venda_positivo CHECK (ValorVenda > 0)  -- Restriï¿½ï¿½o em que a venda deve ser positivo
 GO
 
 ALTER TABLE ItensCompras
-ADD CONSTRAINT Chk_compra_positivo CHECK (ValorUnitario > 0),  -- Restrição em que a compra deve ser positivo
-CONSTRAINT Chk_ItensCompras_qtd_positivo CHECK (Quantidade > 0)  -- Restrição em que a qtdd deve ser positivo
+ADD CONSTRAINT Chk_compra_positivo CHECK (ValorUnitario > 0),  -- Restriï¿½ï¿½o em que a compra deve ser positivo
+CONSTRAINT Chk_ItensCompras_qtd_positivo CHECK (Quantidade > 0)  -- Restriï¿½ï¿½o em que a qtdd deve ser positivo
 GO
 
 ALTER TABLE ItensVendas
-ADD CONSTRAINT Chk_ItensVendas_qtd_positivo CHECK (Quantidade > 0)  -- Restrição em que a qtdd deve ser positivo
+ADD CONSTRAINT Chk_ItensVendas_qtd_positivo CHECK (Quantidade > 0)  -- Restriï¿½ï¿½o em que a qtdd deve ser positivo
 GO
 
 ALTER TABLE ItensProducoes
-ADD CONSTRAINT Chk_ItensProducoes_qtd_positivo CHECK (Quantidade > 0)  -- Restrição em que a qtdd deve ser positivo
+ADD CONSTRAINT Chk_ItensProducoes_qtd_positivo CHECK (Quantidade > 0)  -- Restriï¿½ï¿½o em que a qtdd deve ser positivo
 GO
 
 -------------------------   >>>   Relacionamento entre tabelas   <<<   -------------------------
@@ -200,6 +200,264 @@ GO
 
 -------------------------   >>>   PROCEDURES   <<<   -------------------------
 
+
+/*==========CADASTRO DE CLIENTE=============*/
+CREATE OR ALTER PROCEDURE sp_CadastrarCliente       /*criando a procedure assim, ela pode ser modificada, sem precisar excluir e criar dnv*/
+(@Nome VARCHAR(50),
+ @CPF CHAR(11),
+ @DataNasc DATE,
+ @Situacao INT)
+
+AS BEGIN
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        --Valida se existe CPF
+
+        IF EXISTS (SELECT 1 FROM Clientes WHERE CPF = @CPF)
+            THROW 60001, 'CPF jÃ¡ cadastrado para outro cliente.', 1;
+
+        --Valida se a situaÃ§Ã£o Ã© valida
+
+        IF NOT EXISTS (SELECT 1 FROM SituacaoClientes WHERE id = @Situacao)
+            THROW 60002, 'SituaÃ§Ã£o informada nÃ£o existe.', 1;
+
+        --Inserindo o cliente
+
+        INSERT INTO Clientes (Nome, CPF, DataNasc, DataUltimaCompra, DataCadastro, Situacao)
+        VALUES (@Nome, @CPF, @DataNasc, NULL, GETDATE(), @Situacao);
+
+        --Recupera o ID criado
+        DECLARE @NovoID INT;
+
+        SET @NovoID = SCOPE_IDENTITY();
+
+        COMMIT TRANSACTION;     /*confirma o que foi feito e grava no banco*/
+
+        /*Retorna o ID criado*/
+        SELECT @NovoID AS idCliente;
+
+    END TRY
+    BEGIN CATCH     
+        ROLLBACK TRANSACTION;       /*se algo deu errado, desfaz tudo*/
+        THROW;       /*mostrando o erro*/
+    END CATCH
+END;
+GO
+
+/*=========CADASTRO DE FORNECEDORES=============*/
+
+CREATE OR ALTER PROCEDURE sp_CadastrarFornecedor
+(@CNPJ CHAR(14),
+ @RazaoSocial VARCHAR(50),
+ @Pais VARCHAR(20),
+ @DataAbertura DATE,
+ @Situacao INT)
+
+AS BEGIN
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        --Valida se existe CNPJ
+
+        IF EXISTS (SELECT 1 FROM Fornecedores WHERE CNPJ = @CNPJ)
+            THROW 52001, 'JÃ¡ existe um fornecedor cadastrado com este CNPJ.', 1;
+
+
+        --Valida se a situaÃ§Ã£o Ã© valida
+
+        IF NOT EXISTS (SELECT 1 FROM SituacaoFornecedores WHERE id = @Situacao)
+            THROW 52002, 'SituaÃ§Ã£o de fornecedor invÃ¡lida.', 1;
+
+
+  
+        --Inserindo o fornecedor
+
+        INSERT INTO Fornecedores 
+            (CNPJ, RazaoSocial, Pais, DataAbertura, Situacao, UltimoFornecimento, DataCadastro)
+        VALUES 
+            (@CNPJ, @RazaoSocial, @Pais, @DataAbertura, @Situacao, NULL, GETDATE());
+
+        DECLARE @NovoID INT;
+
+        SET @NovoID = SCOPE_IDENTITY();
+
+        COMMIT TRANSACTION;
+
+        SELECT @NovoID AS idFornecedor;
+
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+
+/*======CADASTRO DE PRINCIPIOS ATIVOS=======*/
+
+/*Ids estÃ£o sendo gerados aut. e ultima compra inicia com null e Ã© atualizada pela trigger*/
+
+CREATE OR ALTER PROCEDURE sp_CadastrarPrincipioAtivo
+(@Nome VARCHAR(20),
+ @Situacao INT)   
+
+AS BEGIN
+
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        --Valida se o nome existe
+
+        IF EXISTS (SELECT 1 FROM PrincipiosAtivo WHERE Nome = @Nome)
+            THROW 62001, 'JÃ¡ existe um princÃ­pio ativo com esse nome.', 1;
+
+
+        --Valida a situaÃ§Ã£o
+
+        IF NOT EXISTS (SELECT 1 FROM SituacaoPrincipiosAtivo WHERE id = @Situacao)
+            THROW 62002, 'SituaÃ§Ã£o informada nÃ£o existe.', 1;
+
+        --Inserindo o principio ativo
+  
+        INSERT INTO PrincipiosAtivo (Nome, Situacao, DataCadastro)
+        VALUES (@Nome, @Situacao, GETDATE());
+
+        DECLARE @NovoID INT;
+
+        SET @NovoID = SCOPE_IDENTITY();
+
+        COMMIT TRANSACTION;
+
+        SELECT @NovoID AS idPrincipioAtivo;
+
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+
+/*======CADASTRO DE MEDICAMENTO========*/
+
+CREATE OR ALTER PROCEDURE sp_CadastrarMedicamento
+(@CDB NUMERIC(13,0),
+ @ValorVenda DECIMAL(6,2),
+ @Nome VARCHAR(40),
+ @Situacao INT,        
+ @Categoria INT)
+
+AS BEGIN
+
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        --Valida a situaÃ§Ã£o
+
+        IF NOT EXISTS (SELECT 1 FROM SituacaoMed WHERE id = @Situacao)
+            THROW 61002, 'SituaÃ§Ã£o informada nÃ£o existe na tabela SituacaoMed.', 1;
+
+        --Valida se a categoria existe
+
+        IF NOT EXISTS (SELECT 1 FROM CategoriasMed WHERE id = @Categoria)
+            THROW 61003, 'Categoria informada nÃ£o existe na tabela CategoriasMed.', 1;
+
+        --Insere o medicamento
+
+        INSERT INTO Medicamentos (CDB, ValorVenda, Nome, DataCadastro, Situacao, Categoria)
+        VALUES (@CDB, @ValorVenda, @Nome, GETDATE(), @Situacao, @Categoria);
+
+        COMMIT TRANSACTION;
+
+        SELECT @CDB AS CDB;
+
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
+--------   >>>   Procedure ItensProduÃ§Ã£o  <<<   --------
+CREATE OR ALTER PROCEDURE sp_ItensProducoes
+@idProducao INT,
+@idPrincipioAt INT,
+@QntPrincipioAt INT
+
+AS BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        BEGIN TRAN;
+
+                -- Valida se a producao existe
+        IF NOT EXISTS (SELECT 1 FROM Producoes WHERE idProducao = @idProducao)
+            THROW 50001, 'Producao nao encontrada.', 1;
+
+                -- Valida se o Principio Ativo existe
+        IF NOT EXISTS (SELECT 1 FROM PrincipiosAtivo WHERE idPrincipioAt = @idPrincipioAt)
+            THROW 50001, 'Principio Ativo nao encontrado.', 1;
+
+        INSERT INTO ItensProducoes (idProducao, idPrincipioAt, Quantidade)
+        VALUES (@idProducao, @idPrincipioAt, @QntPrincipioAt);
+
+        COMMIT TRAN;
+    END TRY
+
+    BEGIN CATCH
+        ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END;
+GO
+
+--------   >>>   Procedure Producao  <<<   --------
+CREATE OR ALTER PROCEDURE sp_Producao
+@CDB NUMERIC(13,0),
+@idPrincipioAt INT,
+@QntItensProducoes INT,
+@QntPrincipioAt INT
+
+AS BEGIN
+    SET NOCOUNT ON;
+    DECLARE @idProducao INT;
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        IF NOT EXISTS (SELECT 1 FROM Medicamentos WHERE CDB = @CDB)
+            THROW 50001, 'Medicamento inexistente.', 1;
+
+        IF NOT EXISTS (SELECT 1 FROM PrincipiosAtivo WHERE idPrincipioAt = @idPrincipioAt)
+            THROW 50001, 'Principio Ativo nao encontrado.', 1;
+
+
+        INSERT INTO Producoes (DataProducao,CDB, Quantidade)
+        VALUES (GETDATE(), @CDB, @QntItensProducoes);
+
+        SET @idProducao = SCOPE_IDENTITY();
+
+        EXEC sp_ItensProducoes @idProducao, @idPrincipioAt, @QntPrincipioAt;
+
+        COMMIT TRAN;
+
+        SELECT @idProducao AS idProducao;   --  retorna o id da producao que foi gerado para quem chamou a procedure
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END;
+GO
+
+
 --------   >>>   Procedure ItensVendas  <<<   --------     *Verifica se existe o idVenda e CDB
 CREATE OR ALTER PROCEDURE sp_ItensVendas
 @idVenda INT,
@@ -207,7 +465,7 @@ CREATE OR ALTER PROCEDURE sp_ItensVendas
 @Quantidade INT
 AS BEGIN
     SET NOCOUNT ON;
-    BEGIN TRY   -- (estrutura: TRY/CATCH)   | TRY > faz a tentativa de inserção
+    BEGIN TRY   -- (estrutura: TRY/CATCH)   | TRY > faz a tentativa de inserï¿½ï¿½o
         BEGIN TRAN;   -- (estrutura: BEGIN TRAN / COMMIT TRAN / ROLLBACK TRAN)    | BEGIN TRAN > o bloco precisa funcionar todas juntas ou nenhuma.
 
                 -- Valida se a venda existe
@@ -218,14 +476,14 @@ AS BEGIN
         IF NOT EXISTS (SELECT 1 FROM Medicamentos WHERE CDB = @CDB)
             THROW 50001, 'CDB nao encontrada.', 1;
 
-        INSERT INTO ItensVendas (idVenda, CDB, Quantidade)   -- faz a inserção
+        INSERT INTO ItensVendas (idVenda, CDB, Quantidade)   -- faz a inserï¿½ï¿½o
         VALUES (@idVenda, @CDB, @Quantidade);
 
-        COMMIT TRAN;   -- se ela não caiu dentro do if então ela confirma o commit
+        COMMIT TRAN;   -- se ela nï¿½o caiu dentro do if entï¿½o ela confirma o commit
     END TRY
 
     BEGIN CATCH   -- CATCH > o que fazer se der erro
-        ROLLBACK TRAN;   -- TRAN = Abreviação de TRANSACTIONfaz
+        ROLLBACK TRAN;   -- TRAN = Abreviaï¿½ï¿½o de TRANSACTIONfaz
         THROW;
     END CATCH
 END;
@@ -359,7 +617,7 @@ GO
 
 CREATE OR ALTER TRIGGER Trg_ImpedirDelete_SituacaoClientes
 ON SituacaoClientes
-INSTEAD OF DELETE   -- INSTEAD OF = aciona a trigger antes da operação DELETE 
+INSTEAD OF DELETE   -- INSTEAD OF = aciona a trigger antes da operaï¿½ï¿½o DELETE 
 AS BEGIN
 	SET NOCOUNT ON;
 	THROW 51000, 'DELETE nao e permitida nesta tabela.', 1;
@@ -508,7 +766,7 @@ AFTER INSERT
 AS BEGIN
     SET NOCOUNT ON;
     UPDATE iv
-    SET iv.ValorUnitario = m.ValorVenda    -- faz a cópia do valor e atrbui a ValorUnitario
+    SET iv.ValorUnitario = m.ValorVenda    -- faz a cï¿½pia do valor e atrbui a ValorUnitario
     FROM ItensVendas iv
     JOIN inserted i 
 	ON iv.id = i.id
@@ -594,7 +852,7 @@ AS BEGIN
 END;
 GO
 
---------   >>>   Trigger VERIFICAÇÕES PARA O CLIENTE   <<<   --------          ALTERADO PARA >  AFTER INSERT, para que o Procedure funcione corretamente
+--------   >>>   Trigger VERIFICAï¿½ï¿½ES PARA O CLIENTE   <<<   --------          ALTERADO PARA >  AFTER INSERT, para que o Procedure funcione corretamente
 
 CREATE OR ALTER TRIGGER Trg_Cliente_RestritoInativoMaiorIdade
 ON Vendas
@@ -602,17 +860,17 @@ AFTER INSERT
 AS BEGIN
     SET NOCOUNT ON;
 
---Verifica se está na lista de restritos
+--Verifica se estï¿½ na lista de restritos
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN ClientesRestritos r ON r.idCliente = i.idCliente
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50020, 'Cliente restrito — venda nao permitida.', 1;
+        THROW 50020, 'Cliente restrito ï¿½ venda nao permitida.', 1;
     END;
 
---Verifica se está inativo
+--Verifica se estï¿½ inativo
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Clientes c ON c.idCliente = i.idCliente
@@ -621,29 +879,29 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50021, 'Cliente inativo — nao e possível registrar venda.', 1;
+        THROW 50021, 'Cliente inativo ï¿½ nao e possï¿½vel registrar venda.', 1;
     END;
 
---Verifica se é menor de idade
+--Verifica se ï¿½ menor de idade
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Clientes c ON i.idCliente = c.idCliente
-        WHERE DATEDIFF(YEAR, c.DataNasc, GETDATE()) -        -- subtrai por 1 caso não tenha feito aniversário ainda
+        WHERE DATEDIFF(YEAR, c.DataNasc, GETDATE()) -        -- subtrai por 1 caso nï¿½o tenha feito aniversï¿½rio ainda
             CASE 
-                WHEN MONTH(c.DataNasc) > MONTH(GETDATE())    -- se o mês de nascimento for maior que o mês atual
+                WHEN MONTH(c.DataNasc) > MONTH(GETDATE())    -- se o mï¿½s de nascimento for maior que o mï¿½s atual
                      OR (MONTH(c.DataNasc) = MONTH(GETDATE()) AND DAY(c.DataNasc) > DAY(GETDATE()))  -- ou serem iguais, mas o dia for maior
-                THEN 1    -- não fez aniversário > subtrai 1
-                ELSE 0    -- senão, subtrai por 0
+                THEN 1    -- nï¿½o fez aniversï¿½rio > subtrai 1
+                ELSE 0    -- senï¿½o, subtrai por 0
             END < 18
     )
     BEGIN  
-        ROLLBACK TRANSACTION;  -- por ser menor de idade, ele faz a operação de cancelar saí da trigger
+        ROLLBACK TRANSACTION;  -- por ser menor de idade, ele faz a operaï¿½ï¿½o de cancelar saï¿½ da trigger
         THROW 51002, 'A venda nao pode ser feita para cliente de menor de idade.', 1;
     END
 END;
 GO
 
---------   >>>   Trigger VERIFICAÇÕES DO FORNECEDOR   <<<   --------          ALTERADO PARA >  AFTER INSERT, para que o Procedure funcione corretamente
+--------   >>>   Trigger VERIFICAï¿½ï¿½ES DO FORNECEDOR   <<<   --------          ALTERADO PARA >  AFTER INSERT, para que o Procedure funcione corretamente
 
 CREATE OR ALTER TRIGGER Trg_Fornecedor_RestritoInativo_LimiteAbertura
 ON Compras
@@ -651,17 +909,17 @@ AFTER INSERT
 AS BEGIN
     SET NOCOUNT ON;
 
---Verifica se está na lista de restritos
+--Verifica se estï¿½ na lista de restritos
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN FornecedoresRestritos r ON r.idFornecedor = i.idFornecedor
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50001, 'Fornecedor bloqueado — compra nao permitida.', 1;
+        THROW 50001, 'Fornecedor bloqueado ï¿½ compra nao permitida.', 1;
     END;
 
---Verifica se está inativo
+--Verifica se estï¿½ inativo
     IF EXISTS (SELECT 1
         FROM inserted i
         JOIN Fornecedores f ON f.idFornecedor = i.idFornecedor
@@ -670,7 +928,7 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50023, 'Fornecedor inativo — compra nao permitida.', 1;
+        THROW 50023, 'Fornecedor inativo ï¿½ compra nao permitida.', 1;
     END;
 
 --Verifica se tem menos de 2 anos de abertura
@@ -687,7 +945,7 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 51002, 'Fornecedor com menos de 2 anos de abertura — compra nao permitida.', 1;
+        THROW 51002, 'Fornecedor com menos de 2 anos de abertura ï¿½ compra nao permitida.', 1;
     END;
 END;
 GO
@@ -731,7 +989,7 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50012, 'O Principio ativo esta como inativo — nao pode ser comprado.', 1;
+        THROW 50012, 'O Principio ativo esta como inativo ï¿½ nao pode ser comprado.', 1;
     END;
 END;
 GO
@@ -751,7 +1009,7 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50013, 'Principio ativo esta como inativo — nao pode ser usado na producao.', 1;
+        THROW 50013, 'Principio ativo esta como inativo ï¿½ nao pode ser usado na producao.', 1;
     END;
 END;
 GO
@@ -771,7 +1029,7 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50014, 'Medicamento inativo — nao pode ser vendido.', 1;
+        THROW 50014, 'Medicamento inativo ï¿½ nao pode ser vendido.', 1;
     END;
 END;
 GO
@@ -791,7 +1049,7 @@ AS BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50015, 'Medicamento inativo — nao pode ser produzido.', 1;
+        THROW 50015, 'Medicamento inativo ï¿½ nao pode ser produzido.', 1;
     END;
 END;
 GO
