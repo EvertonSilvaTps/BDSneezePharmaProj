@@ -1,7 +1,7 @@
 USE SneezePharma
 GO
 
-------------------------------------------------------SITUA«√O CLIENTE------------------------------------------------------
+------------------------------------------------------SITUA√á√ÉO CLIENTE------------------------------------------------------
 
 INSERT INTO SituacaoClientes (Situacao) VALUES
 ('A'),
@@ -9,7 +9,7 @@ INSERT INTO SituacaoClientes (Situacao) VALUES
 
 SELECT * FROM SituacaoClientes
 
-------------------------------------------------------SITUA«√O FORNECEDOR------------------------------------------------------
+------------------------------------------------------SITUA√á√ÉO FORNECEDOR------------------------------------------------------
 
 INSERT INTO SituacaoFornecedores (Situacao) VALUES
 ('A'),
@@ -17,7 +17,7 @@ INSERT INTO SituacaoFornecedores (Situacao) VALUES
 
 SELECT * FROM SituacaoFornecedores
 
--------------------------------------------------SITUA«√O PRICIPIOS ATIVO------------------------------------------------------
+-------------------------------------------------SITUA√á√ÉO PRICIPIOS ATIVO------------------------------------------------------
 
 INSERT INTO SituacaoPrincipiosAtivo (Situacao) VALUES
 ('A'),
@@ -25,7 +25,7 @@ INSERT INTO SituacaoPrincipiosAtivo (Situacao) VALUES
 
 SELECT * FROM SituacaoPrincipiosAtivo
 
-------------------------------------------------------SITUA«√O MEDICAMENTO------------------------------------------------------
+------------------------------------------------------SITUA√á√ÉO MEDICAMENTO------------------------------------------------------
 
 INSERT INTO SituacaoMed (Situacao) VALUES
 ('A'),
@@ -269,14 +269,14 @@ INSERT INTO ItensCompras (idCompra, idPrincipioAt, Quantidade, ValorUnitario) VA
 /*Atributo IdCompra sendo atribuido aqui, IdPrincipioAtivo Tambem*/
 
 (2, 2, 3, '10.00'),				
-(3, 3, 4, '20.00');		/*Aqui total item ja est· calculando*/
+(3, 3, 4, '20.00');		/*Aqui total item ja est√° calculando*/
 
 INSERT INTO ItensCompras (idCompra, idPrincipioAt, Quantidade, ValorUnitario) VALUES
 (1, 1, 2, '5.00');*/			/*Principio Inativo*/
 
 SELECT * FROM ItensCompras;
 
-------------------------------------------------------PRODU«√O------------------------------------------------------
+------------------------------------------------------PRODU√á√ÉO------------------------------------------------------
 
 /*INSERT INTO Producoes (DataProducao, CDB, Quantidade) VALUES	/*CDB sendo trazido*/
 
@@ -301,14 +301,14 @@ EXEC sp_Producao
 
 SELECT * FROM Producoes;
 
-------------------------------------------------------ITENS DA PRODU«√O-------------------------------------------------
+------------------------------------------------------ITENS DA PRODU√á√ÉO-------------------------------------------------
 
-/*INSERT INTO ItensProducoes (idProducao, idPrincipioAt, Quantidade) VALUES	/*Atribuindo IdProduÁ„o e IdPrincipioAtivo*/
+/*INSERT INTO ItensProducoes (idProducao, idPrincipioAt, Quantidade) VALUES	/*Atribuindo IdProdu√ß√£o e IdPrincipioAtivo*/
 
 (2, 2, 15),
 (3, 3, 10);
 
-INSERT INTO ItensProducoes (idProducao, idPrincipioAt, Quantidade) VALUES	/*Atribuindo IdProduÁ„o e IdPrincipioAtivo*/			
+INSERT INTO ItensProducoes (idProducao, idPrincipioAt, Quantidade) VALUES	/*Atribuindo IdProdu√ß√£o e IdPrincipioAtivo*/			
 (1, 1, 20);*/	/*Principio Inativo*/
 
 SELECT * FROM ItensProducoes;
@@ -316,7 +316,7 @@ SELECT * FROM ItensProducoes;
 
 /*===================================================FAZENDO AS JOINS==============================================================*/
 
-/*==============MEDICAMENTOS: Categoria, SituaÁ„o=================*/
+/*==============MEDICAMENTOS: Categoria, Situa√ß√£o=================*/
 
 SELECT 
     m.CDB, m.Nome AS Medicamento, m.ValorVenda, cat.Categoria, s.Situacao AS StatusMedicamento, m.DataCadastro
@@ -327,7 +327,7 @@ JOIN SituacaoMed s
 ON s.id = m.Situacao
 ORDER BY m.Nome;
 
-/*========PRODU«’ES: Qntd, Nome do Med, Nome e Qntd do PAtivo=========*/
+/*========PRODU√á√ïES: Qntd, Nome do Med, Nome e Qntd do PAtivo=========*/
 SELECT 
     p.idProducao, p.DataProducao, m.Nome AS Medicamento, p.Quantidade AS Qtd_Medicamento,
     pa.Nome AS PrincipioAtivo, itp.Quantidade AS Qtd_Principio
@@ -356,7 +356,7 @@ JOIN PrincipiosAtivo pa
 ON pa.idPrincipioAt = ic.idPrincipioAt
 ORDER BY c.idCompra;
 
--- <<   InformaÁıes completas de Cliente   >>
+-- <<   Informa√ß√µes completas de Cliente   >>
 
 SELECT c.idCliente, c.Nome AS "Nome do Cliente", c.CPF, c.DataNasc, c.DataCadastro, c.DataUltimaCompra,
 		t.CodPais, t.CodArea, t.Numero, sc.Situacao
@@ -365,23 +365,23 @@ JOIN SituacaoClientes sc
 ON c.Situacao = sc.id
 JOIN Telefones t
 ON c.idCliente = t.idCliente
---        <<   InformaÁıes completas de Clientes Restritos   >>
+--        <<   Informa√ß√µes completas de Clientes Restritos   >>
 SELECT cr.id, c.Nome, c.CPF
 FROM ClientesRestritos cr
 JOIN Clientes c
 ON cr.idCliente = c.idCliente
---        <<   InformaÁıes completas de Fornecedores   >>
+--        <<   Informa√ß√µes completas de Fornecedores   >>
 SELECT f.idFornecedor, f.RazaoSocial, f.CNPJ, f.Pais, f.DataCadastro, f.DataAbertura, f.UltimoFornecimento,
 		sf.Situacao
 FROM Fornecedores f
 JOIN SituacaoFornecedores sf
 ON f.Situacao = sf.id
---        <<   InformaÁıes completas de Fornecedores Restritos   >>
+--        <<   Informa√ß√µes completas de Fornecedores Restritos   >>
 SELECT fr.id, f.RazaoSocial, f.CNPJ
 FROM FornecedoresRestritos fr
 JOIN Fornecedores f
 ON fr.idFornecedor = f.idFornecedor
---        <<   InformaÁıes completas de Vendas   >>
+--        <<   Informa√ß√µes completas de Vendas   >>
 SELECT v.idVenda, c.Nome AS "Nome do Cliente", c.CPF, iv.Quantidade, iv.ValorUnitario, iv.TotalItem, v.ValorTotal, v.DataVenda,
 		m.Nome, m.Categoria
 FROM Vendas v
@@ -391,8 +391,8 @@ JOIN ItensVendas iv
 ON v.idVenda = iv.idVenda
 JOIN Medicamentos m
 ON iv.CDB = m.CDB
--------------------      <<<    RelatÛrios    <<<      -------------------
---        <<   RelatÛrio de vendas por perÌodo    >>
+-------------------      <<<    Relat√≥rios    <<<      -------------------
+--        <<   Relat√≥rio de vendas por per√≠odo    >>
 SELECT v.idVenda, c.Nome AS "Nome do Cliente", c.CPF, iv.Quantidade, iv.ValorUnitario, iv.TotalItem, v.ValorTotal, v.DataVenda,
 		m.Nome, m.Categoria
 FROM Vendas v
@@ -404,14 +404,14 @@ JOIN Medicamentos m
 ON iv.CDB = m.CDB
 WHERE v.DataVenda BETWEEN '2025-01-01' AND '2025-12-31'
 ORDER BY v.DataVenda, v.idVenda;
---        <<   RelatÛrio de medicamentos mais vendidos    >>
+--        <<   Relat√≥rio de medicamentos mais vendidos    >>
 SELECT m.CDB, m.Nome AS "Medicamento", SUM(iv.Quantidade) AS "Total Unidades Vendidas"
 FROM ItensVendas iv
 JOIN Medicamentos m
 ON iv.CDB = m.CDB
 GROUP BY m.CDB, m.Nome
 ORDER BY "Total Unidades Vendidas" DESC;   -- Ordenar do mais vendido para o menos vendido
---        <<   RelatÛrio de compras por fornecedor   >>
+--        <<   Relat√≥rio de compras por fornecedor   >>
 SELECT f.idFornecedor, f.RazaoSocial, SUM(ic.Quantidade) AS "Total Unidades Compradas"
 FROM ItensCompras ic
 JOIN Compras c
